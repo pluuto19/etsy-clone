@@ -1,8 +1,76 @@
 services:
-  rabbitmq:
-    image: 'rabbitmq:latest'
+  user-service-db:
+    image: mysql:8.0
+    container_name: user-service-db
     environment:
-      - 'RABBITMQ_DEFAULT_PASS=secret'
-      - 'RABBITMQ_DEFAULT_USER=myuser'
+      - MYSQL_DATABASE=userdb
+      - MYSQL_USER=userapp
+      - MYSQL_PASSWORD=userpassword
+      - MYSQL_ROOT_PASSWORD=rootpassword
     ports:
-      - '5672'
+      - "3306:3306"
+    volumes:
+      - user-service-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "userapp", "-puserpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - user-service-network
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  # rabbitmq:
+  #   image: 'rabbitmq:management-alpine'
+  #   container_name: user-service-rabbitmq
+  #   environment:
+  #     - RABBITMQ_DEFAULT_USER=userapp
+  #     - RABBITMQ_DEFAULT_PASS=userpassword
+  #   ports:
+  #     - "5672:5672"
+  #     - "15672:15672"
+  #   healthcheck:
+  #     test: ["CMD", "rabbitmq-diagnostics", "ping"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   networks:
+  #     - user-service-network
+
+  user-service:
+    build: .
+    container_name: user-service
+    depends_on:
+      user-service-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - SERVER_PORT=8080
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://user-service-db:3306/userdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      - SPRING_DATASOURCE_USERNAME=userapp
+      - SPRING_DATASOURCE_PASSWORD=userpassword
+      - SPRING_DATASOURCE_DRIVER_CLASS_NAME=com.mysql.cj.jdbc.Driver
+      - SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.MySQLDialect
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_JPA_SHOW_SQL=true
+      # - SPRING_RABBITMQ_HOST=rabbitmq
+      # - SPRING_RABBITMQ_PORT=5672
+      # - SPRING_RABBITMQ_USERNAME=userapp
+      # - SPRING_RABBITMQ_PASSWORD=userpassword
+      - JWT_SECRET=simpleSecretKeyThatIsAtLeastThirtytwoCharactersLong
+      - JWT_EXPIRATION=86400000
+    ports:
+      - "8080:8080"
+    networks:
+      - user-service-network
+
+volumes:
+  user-service-db-data:
+    name: user-service-db-data
+
+networks:
+  user-service-network:
+    name: user-service-network
+    driver: bridge

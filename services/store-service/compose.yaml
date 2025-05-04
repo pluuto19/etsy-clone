@@ -1,0 +1,54 @@
+services:
+  store-service-db:
+    image: mysql:8.0
+    container_name: store-service-db
+    environment:
+      - MYSQL_DATABASE=storedb
+      - MYSQL_USER=storeapp
+      - MYSQL_PASSWORD=storepassword
+      - MYSQL_ROOT_PASSWORD=rootpassword
+    ports:
+      - "3307:3306"
+    volumes:
+      - store-service-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "storeapp", "-pstorepassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - store-service-network
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  store-service:
+    build: .
+    container_name: store-service
+    depends_on:
+      store-service-db:
+        condition: service_healthy
+    environment:
+      - SERVER_PORT=8081
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://store-service-db:3306/storedb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      - SPRING_DATASOURCE_USERNAME=storeapp
+      - SPRING_DATASOURCE_PASSWORD=storepassword
+      - SPRING_DATASOURCE_DRIVER_CLASS_NAME=com.mysql.cj.jdbc.Driver
+      - SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.MySQLDialect
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_JPA_SHOW_SQL=true
+      - JWT_SECRET=simpleSecretKeyThatIsAtLeastThirtytwoCharactersLong
+      - JWT_EXPIRATION=86400000
+      - USER_SERVICE_URL=http://user-service:8080
+    ports:
+      - "8081:8081"
+    networks:
+      - store-service-network
+
+volumes:
+  store-service-db-data:
+    name: store-service-db-data
+
+networks:
+  store-service-network:
+    name: store-service-network
+    driver: bridge

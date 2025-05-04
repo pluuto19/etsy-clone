@@ -6,6 +6,9 @@ import org.springframework.web.bind.annotation.*;
 import project.semester.aspm.userservice.dto.UserDto;
 import project.semester.aspm.userservice.service.UserService;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
@@ -23,9 +26,24 @@ public class UserController {
         return ResponseEntity.ok(userDto);
     }
 
-    @GetMapping("/verify/{token}")
-    public ResponseEntity<UserDto> verifyEmail(@PathVariable String token) {
-        UserDto userDto = userService.verifyEmail(token);
+    @PostMapping("/verify/{id}")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<UserDto> verifyEmail(@PathVariable Long id) {
+        UserDto userDto = userService.verifyEmail(id);
         return ResponseEntity.ok(userDto);
+    }
+    
+    @PostMapping("/{id}/resend-verification")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<Map<String, String>> resendVerificationToken(@PathVariable Long id) {
+        String token = userService.createVerificationToken(id);
+        
+        Map<String, String> response = new HashMap<>();
+        response.put("message", "Verification token has been sent");
+        // In a real application, we would not return the token directly
+        // For debugging purposes only:
+        response.put("token", token);
+        
+        return ResponseEntity.ok(response);
     }
 } 
